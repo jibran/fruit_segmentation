@@ -33,7 +33,7 @@ from typing import Callable
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 # ---------------------------------------------------------------------------
 # Class metadata
@@ -223,11 +223,62 @@ class FruitSegmentationDataset(Dataset):
         weights = weights / weights.mean()
         return torch.from_numpy(weights.astype(np.float32))
 
+    def get_sample_weights(self) -> torch.Tensor:
+        """Compute per-sample weights for ``WeightedRandomSampler``.
+
+        Each sample is assigned the weight of its dominant class (the class
+        covering the most pixels in that image's mask).  This ensures images
+        dominated by underrepresented fruit classes are sampled more often,
+        producing more balanced class exposure per batch.
+
+        Returns:
+            Float tensor of shape ``(len(self),)`` — one weight per image.
+
+        Note:
+            Scans all masks on disk.  Call once and pass the result to
+            ``WeightedRandomSampler``; do not call inside the training loop.
+
+        Example:
+            >>> sample_weights = train_ds.get_sample_weights()
+            >>> sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
+        """
+        # Count pixel frequency per class across the whole split
+        class_pixel_counts = np.zeros(NUM_CLASSES, dtype=np.int64)
+        dominant_classes: list[int] = []
+
+        for img_path in self.image_paths:
+            mask_path = self.mask_dir / (img_path.stem + ".png")
+            mask = np.array(Image.open(mask_path).convert("L"))
+            # Exclude background (index 16) from dominant-class calculation
+            fruit_mask = mask[mask != BACKGROUND_IDX]
+            if fruit_mask.size == 0:
+                dominant_classes.append(BACKGROUND_IDX)
+            else:
+                dominant = int(
+                    np.bincount(
+                        fruit_mask.flatten(), minlength=NUM_CLASSES - 1
+                    ).argmax()
+                )
+                dominant_classes.append(dominant)
+            for c in range(NUM_CLASSES):
+                class_pixel_counts[c] += (mask == c).sum()
+
+        # Inverse-frequency weight per class
+        freq = class_pixel_counts / (class_pixel_counts.sum() + 1e-10)
+        class_weights = 1.0 / (freq + 1e-6)
+
+        # Assign each sample the weight of its dominant class
+        sample_weights = np.array(
+            [class_weights[c] for c in dominant_classes], dtype=np.float32
+        )
+        return torch.from_numpy(sample_weights)
+
 
 def build_dataloaders(
     cfg: dict,
     train_transform: Callable | None = None,
     val_transform: Callable | None = None,
+    weighted_sampling: bool = False,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Construct train, val, and test DataLoaders from a config dict.
 
@@ -237,12 +288,18 @@ def build_dataloaders(
             ``data.pin_memory``, and ``data.image_size``.
         train_transform: Albumentations transform for the training split.
         val_transform: Albumentations transform for val and test splits.
+        weighted_sampling: If ``True``, replace the random shuffle with a
+            ``WeightedRandomSampler`` so underrepresented fruit classes
+            appear more frequently in each training batch.  Has no effect
+            on val or test loaders.  Defaults to ``False``.
 
     Returns:
         A tuple ``(train_loader, val_loader, test_loader)``.
 
     Example:
-        >>> train_loader, val_loader, test_loader = build_dataloaders(cfg)
+        >>> train_loader, val_loader, test_loader = build_dataloaders(
+        ...     cfg, weighted_sampling=True
+        ... )
         >>> images, masks = next(iter(train_loader))
         >>> images.shape   # (B, 3, 512, 512)
     """
@@ -257,14 +314,31 @@ def build_dataloaders(
     val_ds = FruitSegmentationDataset(root, "val", val_transform, image_size)
     test_ds = FruitSegmentationDataset(root, "test", val_transform, image_size)
 
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        drop_last=True,
-    )
+    if weighted_sampling:
+        print("  [sampler] Computing per-sample weights for WeightedRandomSampler...")
+        sample_weights = train_ds.get_sample_weights()
+        sampler = WeightedRandomSampler(
+            weights=sample_weights,
+            num_samples=len(sample_weights),
+            replacement=True,
+        )
+        train_loader = DataLoader(
+            train_ds,
+            batch_size=batch_size,
+            sampler=sampler,  # mutually exclusive with shuffle=True
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=True,
+        )
+    else:
+        train_loader = DataLoader(
+            train_ds,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=True,
+        )
     val_loader = DataLoader(
         val_ds,
         batch_size=batch_size,

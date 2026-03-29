@@ -273,7 +273,10 @@ def main() -> None:
     # ── Transforms & Dataloaders ─────────────────────────────────────
     train_tf = build_train_transform(cfg)
     val_tf = build_val_transform(cfg)
-    train_loader, val_loader, _ = build_dataloaders(cfg, train_tf, val_tf)
+    weighted_sampling = cfg["data"].get("weighted_sampling", False)
+    train_loader, val_loader, _ = build_dataloaders(
+        cfg, train_tf, val_tf, weighted_sampling=weighted_sampling
+    )
 
     # ── Model ────────────────────────────────────────────────────────
     model = build_model(cfg).to(device)
