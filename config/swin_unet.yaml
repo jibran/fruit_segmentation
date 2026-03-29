@@ -1,0 +1,20 @@
+# Swin Transformer V2 U-Net configuration.
+# Inherits defaults from base_config.yaml — only overrides are listed here.
+
+defaults:
+  - base_config
+
+model:
+  name: "swin_unet"
+  backbone: "swinv2"       # timm model family
+  size: "tiny"             # "tiny" | "small" | "base"
+  pretrained: true
+  freeze_backbone_phase1: true
+
+training:
+  epochs_phase1: 15
+  epochs_phase2: 30
+  # Swin uses slightly lower LRs due to attention param sensitivity
+  lr_decoder: 8.0e-4
+  lr_backbone_phase2: 5.0e-6
+  lr_decoder_phase2: 8.0e-5
