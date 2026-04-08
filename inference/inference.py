@@ -31,16 +31,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 import torch
 import torch.nn.functional as F
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from config.config_loader import load_config
+from dataset.fruit_dataset import (
+    CLASS_NAMES,
+    CLASS_PALETTE,
+    NUM_CLASSES,
+    BACKGROUND_IDX,
+)
+from models import build_model
+from utils.transforms import build_val_transform
 
 # Colour palette for mask visualisation (one RGB colour per class)
 # Import canonical palette from dataset module so colours stay in sync.
 # _PALETTE is kept here as a local alias for the inference helpers below.
 from dataset.fruit_dataset import CLASS_PALETTE as _PALETTE  # noqa: E402
-from models import build_model
-from utils.transforms import build_val_transform
 
 
 def mask_to_colour(mask: np.ndarray) -> np.ndarray:
@@ -77,6 +83,94 @@ def overlay_mask(
         Blended RGB uint8 image.
     """
     return (image * (1 - alpha) + mask_colour * alpha).astype(np.uint8)
+
+
+def label_overlay(
+    image: np.ndarray,
+    mask: np.ndarray,
+    min_area_frac: float = 0.002,
+) -> np.ndarray:
+    """Draw class name labels on each detected region.
+
+    For every fruit class present in the mask a label is drawn at the
+    centroid of that class's pixels.  Regions covering less than
+    ``min_area_frac`` of the image are skipped to avoid cluttering the
+    output with tiny spurious predictions.
+
+    The label pill is filled with the class palette colour so it is
+    visually consistent with the mask overlay.  Text colour is chosen
+    automatically (white on dark fills, black on light fills) for
+    legibility.
+
+    Args:
+        image: RGB uint8 ndarray of shape ``(H, W, 3)`` — the blended
+            overlay image to annotate.
+        mask: Integer ndarray of shape ``(H, W)`` with class indices.
+        min_area_frac: Minimum fraction of total pixels a region must
+            cover for its label to be shown.  Defaults to 0.002 (0.2%).
+
+    Returns:
+        RGB uint8 ndarray with class labels drawn on top.
+    """
+    result = Image.fromarray(image.copy())
+    draw = ImageDraw.Draw(result)
+
+    h, w = mask.shape
+    total_pixels = h * w
+    min_pixels = int(total_pixels * min_area_frac)
+
+    try:
+        font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14
+        )
+    except (IOError, OSError):
+        font = ImageFont.load_default()
+
+    for cls_idx, cls_name in enumerate(CLASS_NAMES):
+        if cls_idx == BACKGROUND_IDX:
+            continue
+        region = mask == cls_idx
+        pixel_count = int(region.sum())
+        if pixel_count < min_pixels:
+            continue
+
+        # Centroid of the class region
+        ys, xs = np.where(region)
+        cx_coord = int(xs.mean())
+        cy_coord = int(ys.mean())
+
+        label = cls_name.replace("_", " ")
+
+        # Measure text size
+        bbox = draw.textbbox((0, 0), label, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        pad_x, pad_y = 6, 3
+
+        fill_rgb = tuple(_PALETTE[cls_idx])
+        brightness = 0.299 * fill_rgb[0] + 0.587 * fill_rgb[1] + 0.114 * fill_rgb[2]
+        text_colour = (255, 255, 255) if brightness < 140 else (20, 20, 20)
+
+        x0 = max(0, cx_coord - text_w // 2 - pad_x)
+        y0 = max(0, cy_coord - text_h // 2 - pad_y)
+        x1 = min(w - 1, cx_coord + text_w // 2 + pad_x)
+        y1 = min(h - 1, cy_coord + text_h // 2 + pad_y)
+
+        draw.rounded_rectangle(
+            [x0, y0, x1, y1],
+            radius=4,
+            fill=fill_rgb,
+            outline=(255, 255, 255),
+            width=1,
+        )
+        draw.text(
+            (cx_coord - text_w // 2, cy_coord - text_h // 2),
+            label,
+            font=font,
+            fill=text_colour,
+        )
+
+    return np.array(result)
 
 
 def predict_single(
@@ -143,6 +237,18 @@ def parse_args() -> argparse.Namespace:
         help="Also save colourised mask overlaid on original image.",
     )
     parser.add_argument(
+        "--labels",
+        action="store_true",
+        help="Draw class name labels on each segmented region in the overlay.",
+    )
+    parser.add_argument(
+        "--min-area",
+        type=float,
+        default=0.002,
+        dest="min_area",
+        help="Min region area fraction required to show a label. Default 0.002.",
+    )
+    parser.add_argument(
         "--device",
         default=None,
         help="Device override (e.g. 'cuda:0', 'cpu').",
@@ -197,6 +303,8 @@ def main() -> None:
             original = np.array(Image.open(img_path).convert("RGB"))
             colour_mask = mask_to_colour(pred_mask)
             blended = overlay_mask(original, colour_mask)
+            if args.labels:
+                blended = label_overlay(blended, pred_mask, min_area_frac=args.min_area)
             Image.fromarray(blended).save(output_dir / f"{img_path.stem}_overlay.png")
 
         print(f"  {img_path.name} → {img_path.stem}_mask.png")
