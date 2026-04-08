@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1 — Baseline vs U-Net Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #080a0f;
+    --bg1:     #0d1018;
+    --bg2:     #131720;
+    --bg3:     #1a1f2e;
+    --border:  #1f2535;
+    --text:    #e2e6f0;
+    --muted:   #5a6480;
+    --muted2:  #8892a8;
+    --cx:      #8b7ff5;
+    --cx-dim:  rgba(139,127,245,0.2);
+    --sw:      #34d399;
+    --sw-dim:  rgba(52,211,153,0.18);
+    --cxb:     #f472b6;
+    --cxb-dim: rgba(244,114,182,0.18);
+    --swb:     #fb923c;
+    --swb-dim: rgba(251,146,60,0.18);
+    --amber:   #fbbf24;
+    --mono:    'JetBrains Mono', monospace;
+    --display: 'Anybody', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 40px 28px 80px;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+    pointer-events: none;
+    z-index: 100;
+  }
+  .wrap { max-width: 1140px; margin: 0 auto; }
+
+  header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 20px;
+    margin-bottom: 44px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid rgba(251,191,36,0.3);
+    background: rgba(251,191,36,0.08);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-bottom: 10px;
+  }
+  .eyebrow::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--amber); animation: pulse 2s ease-in-out infinite; }
+  h1 { font-family: var(--display); font-size: 38px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  h1 em { font-style: normal; color: var(--amber); }
+  .header-meta { text-align: right; color: var(--muted); font-size: 11px; line-height: 2.1; }
+  .header-meta strong { color: var(--muted2); font-weight: 400; }
+
+  .legend-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 28px;
+    padding: 14px 18px;
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    align-items: center;
+  }
+  .leg-group { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted2); }
+  .leg-swatch { width: 22px; height: 3px; border-radius: 2px; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .leg-sep { width: 1px; height: 20px; background: var(--border); }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 18px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:6px 6px 0 0; }
+  .kpi.cx::after  { background: var(--cx); }
+  .kpi.sw::after  { background: var(--sw); }
+  .kpi.cxb::after { background: var(--cxb); }
+  .kpi.swb::after { background: var(--swb); }
+  .kpi-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .kpi-value { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; margin-bottom: 4px; }
+  .kpi.cx .kpi-value  { color: var(--cx); }
+  .kpi.sw .kpi-value  { color: var(--sw); }
+  .kpi.cxb .kpi-value { color: var(--cxb); }
+  .kpi.swb .kpi-value { color: var(--swb); }
+  .kpi-sub { font-size: 11px; color: var(--muted); }
+
+  .card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 22px 14px;
+    margin-bottom: 16px;
+  }
+  .card-title { font-family: var(--display); font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .card-sub { font-size: 11px; color: var(--muted); margin-bottom: 18px; }
+  canvas { width: 100% !important; display: block; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  .gap-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .gap-title { font-family: var(--display); font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .gap-row { display: flex; align-items: center; gap: 14px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .gap-row:last-child { border-bottom: none; }
+  .gap-label { min-width: 160px; font-size: 11px; color: var(--muted2); }
+  .gap-bar-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; position: relative; }
+  .gap-bar-fill { height: 100%; border-radius: 3px; }
+  .gap-baseline { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.15); }
+  .gap-value { min-width: 56px; text-align: right; font-size: 12px; font-weight: 500; }
+  .gap-delta { min-width: 68px; text-align: right; font-size: 11px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--bg1); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  thead tr { background: var(--bg2); }
+  th { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 11px 18px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 400; }
+  th:not(:first-child) { text-align: right; }
+  td { padding: 11px 18px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted2); }
+  td:not(:first-child) { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  .best::after { content: ' ★'; font-size: 9px; }
+
+  .insight {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 6px 6px 0;
+    padding: 16px 20px;
+    font-size: 12px;
+    color: var(--muted2);
+    line-height: 1.8;
+    margin-bottom: 16px;
+  }
+  .insight strong { color: var(--text); font-weight: 500; }
+
+  footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); flex-wrap: wrap; gap: 6px; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  @media(max-width:700px) { .kpi-grid{grid-template-columns:1fr 1fr} .chart-row{grid-template-columns:1fr} h1{font-size:26px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <div class="eyebrow">Phase 1 · frozen backbone · baseline comparison</div>
+    <h1>Baseline vs <em>U-Net</em></h1>
+  </div>
+  <div class="header-meta">
+    <div><strong>epochs</strong> 15 · frozen backbone</div>
+    <div><strong>head LR</strong> 1e-3 cosine</div>
+    <div><strong>images</strong> ~2,491 train · 311 val</div>
+    <div><strong>classes</strong> 16 fruit + background</div>
+  </div>
+</header>
+
+<!-- Legend -->
+<div class="legend-bar">
+  <div class="leg-group"><div class="leg-swatch" style="background:var(--cxb)"></div>ConvNeXt baseline</div>
+  <div class="leg-group"><div class="leg-swatch" style="background:var(--cx)"></div>ConvNeXt U-Net</div>
+  <div class="leg-sep"></div>
+  <div class="leg-group"><div class="leg-swatch" style="background:var(--swb)"></div>Swin baseline</div>
+  <div class="leg-group"><div class="leg-swatch" style="background:var(--sw)"></div>Swin U-Net</div>
+  <div class="leg-sep"></div>
+  <div class="leg-group" style="color:var(--muted);font-size:11px">Baseline metric = mean per-class top-1 acc &nbsp;·&nbsp; U-Net metric = mIoU</div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi cxb">
+    <div class="kpi-label">ConvNeXt baseline best</div>
+    <div class="kpi-value">99.4%</div>
+    <div class="kpi-sub">mean class acc · ep 4</div>
+  </div>
+  <div class="kpi cx">
+    <div class="kpi-label">ConvNeXt U-Net best</div>
+    <div class="kpi-value">95.9%</div>
+    <div class="kpi-sub">val mIoU · ep 15</div>
+  </div>
+  <div class="kpi swb">
+    <div class="kpi-label">Swin baseline best</div>
+    <div class="kpi-value">99.4%</div>
+    <div class="kpi-sub">mean class acc · ep 11</div>
+  </div>
+  <div class="kpi sw">
+    <div class="kpi-label">Swin U-Net best</div>
+    <div class="kpi-value">95.3%</div>
+    <div class="kpi-sub">val mIoU · ep 15</div>
+  </div>
+</div>
+
+<!-- Main mIoU chart -->
+<div class="card">
+  <div class="card-title">Val performance — all 4 models, epochs 1–15</div>
+  <div class="card-sub">Baselines: mean per-class top-1 accuracy · U-Nets: mIoU · all on validation set</div>
+  <canvas id="mainChart" height="280"></canvas>
+</div>
+
+<!-- Loss + pixel acc -->
+<div class="chart-row">
+  <div class="card">
+    <div class="card-title">Validation loss</div>
+    <div class="card-sub">CrossEntropyLoss · all 4 models</div>
+    <canvas id="lossChart" height="220"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title">Convergence speed</div>
+    <div class="card-sub">Epochs to reach 90% of best val metric</div>
+    <canvas id="convChart" height="220"></canvas>
+  </div>
+</div>
+
+<!-- Gap analysis -->
+<div class="gap-card">
+  <div class="gap-title">Baseline vs U-Net gap — val metric at epoch 15</div>
+
+  <div class="gap-row">
+    <div class="gap-label" style="color:var(--cxb)">ConvNeXt baseline</div>
+    <div class="gap-bar-track">
+      <div class="gap-bar-fill" style="width:99.03%;background:var(--cxb)"></div>
+    </div>
+    <div class="gap-value" style="color:var(--cxb)">99.03%</div>
+    <div class="gap-delta">mean acc</div>
+  </div>
+  <div class="gap-row">
+    <div class="gap-label" style="color:var(--cx)">ConvNeXt U-Net</div>
+    <div class="gap-bar-track">
+      <div class="gap-bar-fill" style="width:95.85%;background:var(--cx)"></div>
+    </div>
+    <div class="gap-value" style="color:var(--cx)">95.85%</div>
+    <div class="gap-delta" style="color:var(--amber)">-3.18 pp</div>
+  </div>
+  <div class="gap-row">
+    <div class="gap-label" style="color:var(--swb)">Swin baseline</div>
+    <div class="gap-bar-track">
+      <div class="gap-bar-fill" style="width:99.36%;background:var(--swb)"></div>
+    </div>
+    <div class="gap-value" style="color:var(--swb)">99.36%</div>
+    <div class="gap-delta">mean acc</div>
+  </div>
+  <div class="gap-row">
+    <div class="gap-label" style="color:var(--sw)">Swin U-Net</div>
+    <div class="gap-bar-track">
+      <div class="gap-bar-fill" style="width:95.30%;background:var(--sw)"></div>
+    </div>
+    <div class="gap-value" style="color:var(--sw)">95.30%</div>
+    <div class="gap-delta" style="color:var(--amber)">-4.06 pp</div>
+  </div>
+</div>
+
+<!-- Summary table -->
+<table>
+  <thead>
+    <tr>
+      <th>model</th>
+      <th>type</th>
+      <th>best val metric</th>
+      <th>best epoch</th>
+      <th>ep15 val metric</th>
+      <th>ep15 val loss</th>
+      <th>ep1 val metric</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="color:var(--cxb);font-weight:500">ConvNeXt baseline</td>
+      <td style="color:var(--muted)">classifier</td>
+      <td style="color:var(--cxb)" class="best">0.9936</td>
+      <td>4</td>
+      <td style="color:var(--cxb)">0.9903</td>
+      <td>0.0363</td>
+      <td>0.9579</td>
+    </tr>
+    <tr>
+      <td style="color:var(--cx);font-weight:500">ConvNeXt U-Net</td>
+      <td style="color:var(--muted)">segmentation</td>
+      <td style="color:var(--cx)" class="best">0.9585</td>
+      <td>15</td>
+      <td style="color:var(--cx)">0.9585</td>
+      <td>0.0381</td>
+      <td>0.5157</td>
+    </tr>
+    <tr>
+      <td style="color:var(--swb);font-weight:500">Swin baseline</td>
+      <td style="color:var(--muted)">classifier</td>
+      <td style="color:var(--swb)" class="best">0.9936</td>
+      <td>11</td>
+      <td style="color:var(--swb)">0.9936</td>
+      <td>0.0422</td>
+      <td>0.9525</td>
+    </tr>
+    <tr>
+      <td style="color:var(--sw);font-weight:500">Swin U-Net</td>
+      <td style="color:var(--muted)">segmentation</td>
+      <td style="color:var(--sw)" class="best">0.9530</td>
+      <td>15</td>
+      <td style="color:var(--sw)">0.9530</td>
+      <td>0.0421</td>
+      <td>0.6508</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Insight -->
+<div class="insight">
+  <strong>The baselines converge dramatically faster than the U-Nets</strong> — both reach 95%+ in epoch 1 (ConvNeXt 95.8%, Swin 95.3%) while the U-Nets start at 51.6% and 65.1% respectively. This is expected: the baseline head only needs to learn a single linear mapping from a 768-dim pooled vector, while the U-Net decoder must learn to reconstruct spatial structure from scratch across three decoder blocks.
+  By epoch 15 both baselines plateau near 99.4% mean class accuracy, revealing that the pretrained ConvNeXt-V2 and Swin-V2 backbones already contain near-perfect image-level fruit discrimination in their frozen representations.
+  <strong>The ~3–4 pp gap between baseline and U-Net at epoch 15 is the cost of pixel-level spatial learning</strong> — and phase 2 fine-tuning exists to close it. The U-Nets are still climbing at epoch 15 (not plateaued), suggesting phase 2 will narrow this gap further.
+</div>
+
+<footer>
+  <span>fruit-segmentation · phase 1 · baseline vs u-net comparison</span>
+  <span>convnext_baseline_tiny-202604080523 · convnext_unet_tiny-202604080620 · swin_baseline_tiny-202604080545 · swin_unet_tiny-202604080704</span>
+</footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const EP = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+
+const CXB = '#f472b6', SW_B = '#fb923c', CX = '#8b7ff5', SW = '#34d399';
+const GRID = 'rgba(255,255,255,0.04)', TICK = 'rgba(255,255,255,0.28)';
+const FONT = "'JetBrains Mono', monospace";
+
+const cxBase_val  = [0.957895,0.96727,0.983166,0.993586,0.987007,0.987007,0.990296,0.993421,0.990132,0.993586,0.993421,0.990296,0.990296,0.990296,0.990296];
+const cxUnet_val  = [0.515663,0.772353,0.834638,0.90557,0.887769,0.922348,0.927381,0.928018,0.941974,0.944633,0.946231,0.954316,0.955491,0.956604,0.958461];
+const swBase_val  = [0.952506,0.973075,0.98333,0.980428,0.990296,0.983717,0.990296,0.983717,0.980428,0.990296,0.993586,0.993586,0.993586,0.993586,0.993586];
+const swUnet_val  = [0.650813,0.735262,0.889023,0.880832,0.904016,0.918028,0.935101,0.920082,0.936331,0.950075,0.949388,0.949702,0.951835,0.951482,0.953035];
+
+const cxBase_loss = [0.163131,0.111965,0.086714,0.054318,0.065135,0.052927,0.042016,0.036346,0.043232,0.039275,0.038488,0.036911,0.036815,0.036815,0.036254];
+const cxUnet_loss = [0.332671,0.190232,0.128019,0.080271,0.087824,0.065751,0.059599,0.059065,0.047772,0.046874,0.043854,0.039571,0.039408,0.038949,0.038104];
+const swBase_loss = [0.158479,0.117715,0.079639,0.076095,0.051803,0.060764,0.056817,0.061506,0.058184,0.043655,0.046684,0.043015,0.042454,0.042454,0.04215];
+const swUnet_loss = [0.296119,0.194345,0.100529,0.091238,0.07614,0.072469,0.056737,0.062089,0.051679,0.045647,0.04442,0.043173,0.043271,0.04326,0.042064];
+
+function baseOpts(yMin, yMax, step) {
+  return {
+    responsive: true,
+    animation: { duration: 800, easing: 'easeOutQuart' },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#131720', borderColor: '#1f2535', borderWidth: 1,
+        titleColor: '#e2e6f0', bodyColor: '#8892a8',
+        titleFont: { family: FONT, size: 11 }, bodyFont: { family: FONT, size: 11 },
+        padding: 10,
+        callbacks: { label: c => `  ${c.dataset.label}: ${c.parsed.y.toFixed(4)}` }
+      }
+    },
+    scales: {
+      x: { grid:{color:GRID}, ticks:{color:TICK, font:{family:FONT, size:10}}, border:{color:'rgba(255,255,255,0.08)'} },
+      y: { min:yMin, max:yMax, grid:{color:GRID}, ticks:{color:TICK, font:{family:FONT, size:10}, stepSize:step}, border:{color:'rgba(255,255,255,0.08)'} }
+    }
+  };
+}
+
+function ds(label, data, color, dashed) {
+  return {
+    label, data,
+    borderColor: color,
+    backgroundColor: 'transparent',
+    borderWidth: dashed ? 1.8 : 2.5,
+    borderDash: dashed ? [5,4] : [],
+    pointRadius: 3,
+    pointBackgroundColor: color,
+    tension: 0.3,
+  };
+}
+
+new Chart(document.getElementById('mainChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt baseline val', cxBase_val, CXB, false),
+    ds('ConvNeXt U-Net val',    cxUnet_val, CX,  false),
+    ds('Swin baseline val',     swBase_val, SW_B, false),
+    ds('Swin U-Net val',        swUnet_val, SW,  false),
+  ]},
+  options: baseOpts(0.45, 1.01, 0.05),
+});
+
+new Chart(document.getElementById('lossChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt baseline loss', cxBase_loss, CXB, false),
+    ds('ConvNeXt U-Net loss',    cxUnet_loss, CX,  false),
+    ds('Swin baseline loss',     swBase_loss, SW_B, false),
+    ds('Swin U-Net loss',        swUnet_loss, SW,  false),
+  ]},
+  options: baseOpts(0.03, 0.36, 0.05),
+});
+
+// Convergence: epoch to reach 90% of each model's best
+const models = [
+  { label: 'CX baseline', color: CXB, data: cxBase_val },
+  { label: 'CX U-Net',    color: CX,  data: cxUnet_val },
+  { label: 'SW baseline', color: SW_B, data: swBase_val },
+  { label: 'SW U-Net',    color: SW,  data: swUnet_val },
+];
+const convData = models.map(m => {
+  const best = Math.max(...m.data);
+  const thresh = best * 0.90;
+  const ep = m.data.findIndex(v => v >= thresh) + 1;
+  return ep > 0 ? ep : 15;
+});
+
+new Chart(document.getElementById('convChart'), {
+  type: 'bar',
+  data: {
+    labels: models.map(m => m.label),
+    datasets: [{
+      label: 'Epochs to 90% of best',
+      data: convData,
+      backgroundColor: models.map(m => m.color + '99'),
+      borderColor: models.map(m => m.color),
+      borderWidth: 1.5,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    animation: { duration: 800, easing: 'easeOutQuart' },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#131720', borderColor: '#1f2535', borderWidth: 1,
+        titleColor: '#e2e6f0', bodyColor: '#8892a8',
+        titleFont: { family: FONT, size: 11 }, bodyFont: { family: FONT, size: 11 },
+        padding: 10,
+        callbacks: { label: c => `  ${c.dataset.label}: epoch ${c.parsed.y}` }
+      }
+    },
+    scales: {
+      x: { grid:{color:GRID}, ticks:{color:TICK, font:{family:FONT, size:10}}, border:{color:'rgba(255,255,255,0.08)'} },
+      y: { min:0, max:16, grid:{color:GRID}, ticks:{color:TICK, font:{family:FONT, size:10}, stepSize:2}, border:{color:'rgba(255,255,255,0.08)'} }
+    }
+  }
+});
+</script>
+</body>
+</html>
