@@ -43,9 +43,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
-from collections import deque
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -53,27 +53,24 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from PIL import Image, ImageDraw, ImageFont
 
 from config.config_loader import load_config
 from dataset.fruit_dataset import (
+    BACKGROUND_IDX,
     CLASS_NAMES,
     CLASS_PALETTE,
-    BACKGROUND_IDX,
     NUM_CLASSES,
 )
 from models import build_model
 from utils.transforms import build_val_transform
 
-
 # ── Colour lookup table (BGR for OpenCV) ─────────────────────────────────────
 
-_PALETTE_BGR: list[tuple[int, int, int]] = [
-    (b, g, r) for (r, g, b) in CLASS_PALETTE
-]
+_PALETTE_BGR: list[tuple[int, int, int]] = [(b, g, r) for (r, g, b) in CLASS_PALETTE]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def build_colour_lut() -> np.ndarray:
     """Build a (NUM_CLASSES, 3) uint8 BGR lookup table for fast mask colouring.
@@ -236,6 +233,7 @@ def draw_hud(
 
 # ── Model helpers ─────────────────────────────────────────────────────────────
 
+
 def load_model(
     cfg: dict,
     checkpoint_path: str,
@@ -307,16 +305,15 @@ def infer_frame(
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments.
 
     Returns:
         Parsed argument namespace.
     """
-    parser = argparse.ArgumentParser(
-        description="Live webcam fruit segmentation."
-    )
-    parser.add_argument("--config",     required=True, help="Path to YAML config.")
+    parser = argparse.ArgumentParser(description="Live webcam fruit segmentation.")
+    parser.add_argument("--config", required=True, help="Path to YAML config.")
     parser.add_argument("--checkpoint", required=True, help="Path to .pth checkpoint.")
     parser.add_argument(
         "--camera",
@@ -371,11 +368,10 @@ def main() -> None:
     cfg = load_config(args.config)
 
     device = torch.device(
-        args.device if args.device
-        else ("cuda" if torch.cuda.is_available() else "cpu")
+        args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu")
     )
 
-    print(f"\nFruit Segmentation — Live Webcam")
+    print("\nFruit Segmentation — Live Webcam")
     print(f"  Config    : {args.config}")
     print(f"  Checkpoint: {args.checkpoint}")
     print(f"  Device    : {device}")

@@ -35,18 +35,16 @@ from PIL import Image, ImageDraw, ImageFont
 
 from config.config_loader import load_config
 from dataset.fruit_dataset import (
-    CLASS_NAMES,
-    CLASS_PALETTE,
-    NUM_CLASSES,
     BACKGROUND_IDX,
+    CLASS_NAMES,
 )
-from models import build_model
-from utils.transforms import build_val_transform
 
 # Colour palette for mask visualisation (one RGB colour per class)
 # Import canonical palette from dataset module so colours stay in sync.
 # _PALETTE is kept here as a local alias for the inference helpers below.
 from dataset.fruit_dataset import CLASS_PALETTE as _PALETTE  # noqa: E402
+from models import build_model
+from utils.transforms import build_val_transform
 
 
 def mask_to_colour(mask: np.ndarray) -> np.ndarray:

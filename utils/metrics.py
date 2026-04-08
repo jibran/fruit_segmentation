@@ -71,6 +71,7 @@ class SegmentationMetrics:
             - ``"miou"`` — mean IoU across all classes (float).
             - ``"pixel_acc"`` — global pixel accuracy (float).
             - ``"class_iou"`` — per-class IoU as a list of floats.
+            - ``"class_acc"`` — per-class accuracy as a list of floats (NaN for absent classes).
             - ``"mean_acc"`` — mean per-class accuracy (float).
 
         Example:
@@ -103,5 +104,6 @@ class SegmentationMetrics:
             "miou": miou,
             "pixel_acc": pixel_acc,
             "class_iou": iou_per_class.tolist(),
+            "class_acc": per_class_acc.tolist(),
             "mean_acc": mean_acc,
         }

@@ -31,7 +31,7 @@ import torch
 import torch.nn as nn
 
 from config.config_loader import get_model_name_with_size, load_config
-from dataset.fruit_dataset import build_dataloaders
+from dataset.fruit_dataset import CLASS_NAMES, build_dataloaders
 from models import build_model
 from utils.checkpoint import CheckpointManager
 from utils.engine import train_one_epoch, validate_one_epoch
@@ -220,6 +220,8 @@ def run_phase(
             train_metrics["pixel_acc"],
             train_metrics["mean_acc"],
             current_lr,
+            class_iou=train_metrics.get("class_iou"),
+            class_acc=train_metrics.get("class_acc"),
         )
         logger.log(
             epoch,
@@ -229,6 +231,8 @@ def run_phase(
             val_metrics["pixel_acc"],
             val_metrics["mean_acc"],
             current_lr,
+            class_iou=val_metrics.get("class_iou"),
+            class_acc=val_metrics.get("class_acc"),
         )
 
         # ── Checkpoints ───────────────────────────────────────────────
@@ -289,7 +293,7 @@ def main() -> None:
 
     # ── Utilities ────────────────────────────────────────────────────
     criterion = build_criterion(cfg, device)
-    logger = CSVLogger(log_cfg["log_dir"], model_name)
+    logger = CSVLogger(log_cfg["log_dir"], model_name, class_names=CLASS_NAMES)
     ckpt_manager = CheckpointManager(
         ckpt_cfg["best_dir"],
         ckpt_cfg["latest_dir"],
@@ -297,6 +301,7 @@ def main() -> None:
         ckpt_cfg.get("save_every_n_epochs", 5),
     )
     print(f"  Logs  : {logger.filepath}")
+    print(f"  Class logs: {logger.class_filepath}")
 
     # ── Resume (optional) ────────────────────────────────────────────
     start_epoch = 1
