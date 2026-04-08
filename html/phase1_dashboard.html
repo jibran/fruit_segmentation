@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fruit Segmentation — Phase 1 Training Results</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #141720;
+    --surface2: #1c2030;
+    --border: #252a3a;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --convnext: #8b7ff5;
+    --convnext-dim: rgba(139,127,245,0.15);
+    --swin: #34d399;
+    --swin-dim: rgba(52,211,153,0.12);
+    --amber: #fbbf24;
+    --mono: 'DM Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 48px 32px;
+  }
+
+  .page {
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 52px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+
+  h1 span { color: var(--convnext); }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    max-width: 560px;
+  }
+
+  .badges {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .badge.phase { border-color: var(--amber); color: var(--amber); }
+
+  section {
+    margin-bottom: 52px;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 28px 16px;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .chart-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  canvas {
+    width: 100% !important;
+    display: block;
+  }
+
+  .legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .legend-line {
+    width: 28px;
+    height: 2px;
+    border-radius: 2px;
+  }
+
+  .legend-line.dashed {
+    background: repeating-linear-gradient(
+      to right,
+      currentColor 0, currentColor 5px,
+      transparent 5px, transparent 9px
+    );
+    height: 2px;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 680px) {
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  thead tr {
+    background: var(--surface2);
+  }
+
+  th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 14px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th:not(:first-child) { text-align: right; }
+
+  td {
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  td:not(:first-child) { text-align: right; }
+
+  tr:last-child td { border-bottom: none; }
+
+  .metric-name {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .val-convnext {
+    color: var(--convnext);
+    font-weight: 500;
+  }
+
+  .val-swin {
+    color: var(--swin);
+    font-weight: 500;
+  }
+
+  .winner {
+    position: relative;
+  }
+
+  .winner::after {
+    content: '▲';
+    font-size: 8px;
+    margin-left: 5px;
+    opacity: 0.7;
+  }
+
+  .delta {
+    font-size: 11px;
+    color: var(--amber);
+    margin-left: 6px;
+  }
+
+  .model-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .insight-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 680px) {
+    .insight-grid { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 26px; }
+  }
+
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 18px 14px;
+  }
+
+  .insight-card.convnext { border-top: 2px solid var(--convnext); }
+  .insight-card.swin { border-top: 2px solid var(--swin); }
+
+  .insight-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .insight-value {
+    font-family: var(--display);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .insight-value.convnext { color: var(--convnext); }
+  .insight-value.swin { color: var(--swin); }
+
+  .insight-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 8px 8px 0;
+    padding: 20px 24px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .verdict strong { color: var(--text); font-weight: 500; }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <p class="eyebrow">fruit segmentation · training analysis</p>
+    <h1>Phase 1 <span>training</span> results</h1>
+    <p class="subtitle">ConvNeXt-V2 Tiny vs Swin-V2 Tiny — frozen backbone, 15 epochs, cosine LR schedule</p>
+    <div class="badges">
+      <span class="badge phase">Phase 1 · frozen backbone</span>
+      <span class="badge">15 epochs</span>
+      <span class="badge">512 × 512 input</span>
+      <span class="badge">17 classes</span>
+      <span class="badge">~2,491 train images</span>
+      <span class="badge">weighted random sampler</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="section-label">epoch 15 highlights</p>
+    <div class="insight-grid">
+      <div class="insight-card convnext">
+        <p class="insight-label">ConvNeXt val mIoU</p>
+        <p class="insight-value convnext">95.9%</p>
+        <p class="insight-sub">epoch 15 best</p>
+      </div>
+      <div class="insight-card swin">
+        <p class="insight-label">Swin val mIoU</p>
+        <p class="insight-value swin">94.9%</p>
+        <p class="insight-sub">epoch 15</p>
+      </div>
+      <div class="insight-card convnext">
+        <p class="insight-label">ConvNeXt val loss</p>
+        <p class="insight-value convnext">0.0361</p>
+        <p class="insight-sub">vs Swin 0.0438</p>
+      </div>
+      <div class="insight-card swin">
+        <p class="insight-label">Swin val loss</p>
+        <p class="insight-value swin">0.0438</p>
+        <p class="insight-sub">vs ConvNeXt 0.0361</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">mIoU curves</p>
+    <div class="chart-card">
+      <p class="chart-title">Validation &amp; training mIoU — epochs 1–15</p>
+      <p class="chart-desc">Solid lines = validation · dashed lines = training · frozen backbone throughout</p>
+      <div class="chart-wrap">
+        <canvas id="miouChart" height="320"></canvas>
+      </div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-line" style="background:var(--convnext)"></div>
+          <span>ConvNeXt val mIoU</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line dashed" style="color:var(--convnext)"></div>
+          <span>ConvNeXt train mIoU</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:var(--swin)"></div>
+          <span>Swin val mIoU</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line dashed" style="color:var(--swin)"></div>
+          <span>Swin train mIoU</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">loss curves</p>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <p class="chart-title">Validation loss</p>
+        <p class="chart-desc">CrossEntropyLoss · ignore_index=16</p>
+        <div class="chart-wrap">
+          <canvas id="valLossChart" height="240"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <p class="chart-title">Training loss</p>
+        <p class="chart-desc">CrossEntropyLoss · ignore_index=16</p>
+        <div class="chart-wrap">
+          <canvas id="trainLossChart" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="legend" style="padding-top:0; border-top:none; margin-top:0">
+      <div class="legend-item">
+        <div class="legend-line" style="background:var(--convnext)"></div>
+        <span>ConvNeXt-V2 Tiny</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:var(--swin)"></div>
+        <span>Swin-V2 Tiny</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">epoch 15 comparison</p>
+    <table>
+      <thead>
+        <tr>
+          <th>metric</th>
+          <th>
+            <div class="model-header" style="justify-content:flex-end">
+              <span class="dot" style="background:var(--convnext)"></span>
+              ConvNeXt-V2 Tiny
+            </div>
+          </th>
+          <th>
+            <div class="model-header" style="justify-content:flex-end">
+              <span class="dot" style="background:var(--swin)"></span>
+              Swin-V2 Tiny
+            </div>
+          </th>
+          <th>delta</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric-name">val mIoU</td>
+          <td class="val-convnext winner">0.9593</td>
+          <td class="val-swin">0.9489</td>
+          <td><span class="delta">+1.04 pp</span></td>
+        </tr>
+        <tr>
+          <td class="metric-name">val loss</td>
+          <td class="val-convnext winner">0.0361</td>
+          <td class="val-swin">0.0438</td>
+          <td><span class="delta">−17.6%</span></td>
+        </tr>
+        <tr>
+          <td class="metric-name">val pixel acc</td>
+          <td class="val-convnext winner">0.9886</td>
+          <td class="val-swin">0.9868</td>
+          <td><span class="delta">+0.18 pp</span></td>
+        </tr>
+        <tr>
+          <td class="metric-name">val mean acc</td>
+          <td class="val-convnext winner">0.9821</td>
+          <td class="val-swin">0.9781</td>
+          <td><span class="delta">+0.40 pp</span></td>
+        </tr>
+        <tr>
+          <td class="metric-name">train mIoU</td>
+          <td class="val-convnext winner">0.9484</td>
+          <td class="val-swin">0.9342</td>
+          <td><span class="delta">+1.42 pp</span></td>
+        </tr>
+        <tr>
+          <td class="metric-name">train loss</td>
+          <td class="val-convnext winner">0.0398</td>
+          <td class="val-swin">0.0491</td>
+          <td><span class="delta">−18.9%</span></td>
+        </tr>
+        <tr>
+          <td class="metric-name">val−train mIoU gap</td>
+          <td class="val-convnext">+0.0109</td>
+          <td class="val-swin">+0.0147</td>
+          <td style="color:var(--muted)">healthy</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <p class="section-label">analysis</p>
+    <div class="verdict">
+      <strong>ConvNeXt-V2 leads across all metrics at epoch 15.</strong> The 1 pp mIoU gap and 18% lower loss
+      are consistent with the architectural hypothesis: ConvNeXt's 7×7 depthwise convolutions are well suited
+      to detecting local texture patterns like rot and bruising, while Swin's shifted-window attention provides
+      less benefit when global context is not required. Both models show a positive val−train mIoU gap,
+      indicating the augmentation pipeline is working as intended — making training harder than validation
+      rather than causing overfitting. ConvNeXt's convergence is also smoother: Swin shows a brief val mIoU
+      dip at epoch 5 (0.869) before recovering, suggesting its attention mechanism takes longer to find a
+      stable optimum under the frozen-backbone constraint.
+    </div>
+  </section>
+
+  <footer>
+    <span>fruit-segmentation · phase 1 · backbone frozen</span>
+    <span>convnext_unet_tiny-202603301135 · swin_unet_tiny-202604032147</span>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const epochs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+
+const cx = {
+  trainMiou: [0.3397,0.630914,0.739542,0.804238,0.827174,0.877363,0.891686,0.903108,0.923347,0.924688,0.93787,0.942891,0.948141,0.949926,0.948425],
+  valMiou:   [0.637952,0.746175,0.819715,0.892679,0.9135,0.930299,0.938508,0.933925,0.947275,0.948426,0.951664,0.954737,0.957661,0.956776,0.959319],
+  trainLoss: [0.647387,0.262586,0.177866,0.133929,0.116304,0.086558,0.075776,0.068563,0.056306,0.054064,0.04656,0.043541,0.039996,0.038408,0.039848],
+  valLoss:   [0.296441,0.179951,0.129463,0.088948,0.078921,0.061535,0.051314,0.05634,0.046162,0.043964,0.041655,0.039632,0.037365,0.037527,0.036112],
+};
+
+const sw = {
+  trainMiou: [0.390144,0.650684,0.748056,0.816943,0.847378,0.866458,0.888572,0.90036,0.921582,0.927783,0.935026,0.931308,0.933827,0.935174,0.934242],
+  valMiou:   [0.628179,0.757856,0.855313,0.897461,0.869337,0.916287,0.918237,0.942605,0.930406,0.945146,0.947479,0.951883,0.95053,0.948974,0.948894],
+  trainLoss: [0.666521,0.268448,0.189072,0.142576,0.115291,0.102632,0.082259,0.074257,0.057342,0.054661,0.048749,0.052085,0.048743,0.048098,0.049114],
+  valLoss:   [0.307436,0.180332,0.114248,0.079144,0.090141,0.070607,0.064074,0.050576,0.056483,0.046759,0.044639,0.04278,0.043802,0.043623,0.043753],
+};
+
+const PURPLE = '#8b7ff5';
+const PURPLE_DIM = 'rgba(139,127,245,0.35)';
+const GREEN = '#34d399';
+const GREEN_DIM = 'rgba(52,211,153,0.3)';
+const GRID = 'rgba(255,255,255,0.05)';
+const TICK = 'rgba(255,255,255,0.3)';
+
+const baseOpts = (yLabel, yMin, yMax, stepSize) => ({
+  responsive: true,
+  animation: { duration: 800, easing: 'easeOutQuart' },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#1c2030',
+      borderColor: '#252a3a',
+      borderWidth: 1,
+      titleColor: '#e8eaf0',
+      bodyColor: '#9ca3af',
+      titleFont: { family: "'DM Mono', monospace", size: 12 },
+      bodyFont: { family: "'DM Mono', monospace", size: 12 },
+      padding: 10,
+      callbacks: {
+        label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(4)}`
+      }
+    }
+  },
+  scales: {
+    x: {
+      grid: { color: GRID },
+      ticks: { color: TICK, font: { family: "'DM Mono', monospace", size: 11 } },
+      border: { color: 'rgba(255,255,255,0.1)' }
+    },
+    y: {
+      min: yMin, max: yMax,
+      grid: { color: GRID },
+      ticks: { color: TICK, font: { family: "'DM Mono', monospace", size: 11 }, stepSize },
+      border: { color: 'rgba(255,255,255,0.1)' }
+    }
+  }
+});
+
+new Chart(document.getElementById('miouChart'), {
+  type: 'line',
+  data: {
+    labels: epochs,
+    datasets: [
+      { label: 'ConvNeXt val mIoU',   data: cx.valMiou,   borderColor: PURPLE,     backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: PURPLE,  tension: 0.3 },
+      { label: 'ConvNeXt train mIoU', data: cx.trainMiou, borderColor: PURPLE_DIM, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5,4], pointRadius: 2, pointBackgroundColor: PURPLE_DIM, tension: 0.3 },
+      { label: 'Swin val mIoU',       data: sw.valMiou,   borderColor: GREEN,      backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: GREEN,   tension: 0.3 },
+      { label: 'Swin train mIoU',     data: sw.trainMiou, borderColor: GREEN_DIM,  backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5,4], pointRadius: 2, pointBackgroundColor: GREEN_DIM,  tension: 0.3 },
+    ]
+  },
+  options: baseOpts('mIoU', 0.3, 1.0, 0.1)
+});
+
+new Chart(document.getElementById('valLossChart'), {
+  type: 'line',
+  data: {
+    labels: epochs,
+    datasets: [
+      { label: 'ConvNeXt val loss', data: cx.valLoss, borderColor: PURPLE, backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: PURPLE, tension: 0.3 },
+      { label: 'Swin val loss',     data: sw.valLoss, borderColor: GREEN,  backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: GREEN,  tension: 0.3 },
+    ]
+  },
+  options: baseOpts('loss', 0, 0.35, 0.05)
+});
+
+new Chart(document.getElementById('trainLossChart'), {
+  type: 'line',
+  data: {
+    labels: epochs,
+    datasets: [
+      { label: 'ConvNeXt train loss', data: cx.trainLoss, borderColor: PURPLE, backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: PURPLE, tension: 0.3 },
+      { label: 'Swin train loss',     data: sw.trainLoss, borderColor: GREEN,  backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: GREEN,  tension: 0.3 },
+    ]
+  },
+  options: baseOpts('loss', 0, 0.75, 0.1)
+});
+</script>
+</body>
+</html>
