@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 2 — End-to-End Fine-Tuning Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080a0f;
+    --bg1:       #0d1018;
+    --bg2:       #131720;
+    --bg3:       #1a1f2e;
+    --border:    #1f2535;
+    --border2:   #2a3045;
+    --cx:        #8b7ff5;
+    --cx2:       rgba(139,127,245,0.18);
+    --cx3:       rgba(139,127,245,0.06);
+    --sw:        #34d399;
+    --sw2:       rgba(52,211,153,0.18);
+    --sw3:       rgba(52,211,153,0.06);
+    --amber:     #fbbf24;
+    --amber2:    rgba(251,191,36,0.15);
+    --text:      #e2e6f0;
+    --muted:     #5a6480;
+    --muted2:    #8892a8;
+    --mono:      'JetBrains Mono', monospace;
+    --display:   'Anybody', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle scanline texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 40px 28px 80px; }
+
+  /* ── Header ── */
+  header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 20px;
+    margin-bottom: 48px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .phase-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid var(--amber2);
+    background: var(--amber2);
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-bottom: 10px;
+  }
+
+  .phase-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  h1 em { font-style: normal; color: var(--cx); }
+
+  .header-meta {
+    text-align: right;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 2;
+  }
+
+  .header-meta strong { color: var(--muted2); font-weight: 400; }
+
+  /* ── KPI row ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .kpi {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px 14px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .kpi::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .kpi.cx::after { background: var(--cx); }
+  .kpi.sw::after { background: var(--sw); }
+  .kpi.tie::after { background: linear-gradient(90deg, var(--cx), var(--sw)); }
+  .kpi.gain::after { background: var(--amber); }
+
+  .kpi-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-family: var(--display);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .kpi.cx .kpi-value { color: var(--cx); }
+  .kpi.sw .kpi-value { color: var(--sw); }
+  .kpi.tie .kpi-value { color: var(--text); }
+  .kpi.gain .kpi-value { color: var(--amber); }
+
+  .kpi-sub { font-size: 11px; color: var(--muted); }
+  .kpi-sub span { color: var(--muted2); }
+
+  /* ── Charts ── */
+  .chart-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .chart-full { margin-bottom: 16px; }
+
+  .card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 24px 16px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .card-title {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .card-subtitle { font-size: 11px; color: var(--muted); margin-bottom: 18px; }
+
+  canvas { width: 100% !important; display: block; }
+
+  .legend {
+    display: flex;
+    gap: 20px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .leg { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted2); }
+  .leg-line { width: 24px; height: 2px; border-radius: 1px; }
+  .leg-dash { background: repeating-linear-gradient(90deg, currentColor 0, currentColor 4px, transparent 4px, transparent 7px); height: 2px; }
+
+  /* ── Comparison table ── */
+  .table-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .table-head-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead tr { background: var(--bg2); }
+
+  th {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 11px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+
+  th:not(:first-child) { text-align: right; }
+
+  td {
+    padding: 11px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted2);
+  }
+
+  td:not(:first-child) { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+
+  .metric { color: var(--text); }
+  .v-cx { color: var(--cx); font-weight: 500; }
+  .v-sw { color: var(--sw); font-weight: 500; }
+  .winner::after { content: ' ▲'; font-size: 9px; opacity: 0.6; }
+  .delta-pos { color: var(--amber); font-size: 11px; }
+  .delta-neu { color: var(--muted); font-size: 11px; }
+
+  /* ── Phase comparison band ── */
+  .phase-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .phase-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 22px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .phase-card-title {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .gain-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .gain-row:last-child { border-bottom: none; }
+  .gain-label { font-size: 11px; color: var(--muted2); }
+  .gain-bar-wrap { flex: 1; margin: 0 14px; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .gain-bar { height: 100%; border-radius: 2px; transition: width 1s ease; }
+  .gain-value { font-size: 12px; font-weight: 500; min-width: 52px; text-align: right; }
+
+  /* ── Analysis ── */
+  .analysis {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 6px 6px 0;
+    padding: 18px 22px;
+    font-size: 12px;
+    color: var(--muted2);
+    line-height: 1.8;
+    animation: fadeUp 0.7s ease both;
+  }
+
+  .analysis strong { color: var(--text); font-weight: 500; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .kpi:nth-child(1) { animation-delay: 0.05s; }
+  .kpi:nth-child(2) { animation-delay: 0.10s; }
+  .kpi:nth-child(3) { animation-delay: 0.15s; }
+  .kpi:nth-child(4) { animation-delay: 0.20s; }
+
+  @media (max-width: 700px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .chart-row { grid-template-columns: 1fr; }
+    .phase-compare { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="phase-badge">Phase 2 · end-to-end fine-tuning</div>
+      <h1>Training <em>dashboard</em></h1>
+    </div>
+    <div class="header-meta">
+      <div><strong>epochs</strong>  1–15 / 30</div>
+      <div><strong>backbone LR</strong>  1e-5 → cosine</div>
+      <div><strong>decoder LR</strong>  1e-4 → cosine</div>
+      <div><strong>images</strong>  ~2,491 train · 311 val</div>
+    </div>
+  </header>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi cx">
+      <div class="kpi-label">ConvNeXt best val mIoU</div>
+      <div class="kpi-value">97.24%</div>
+      <div class="kpi-sub">epoch 14 <span>· +1.31 pp vs phase 1</span></div>
+    </div>
+    <div class="kpi sw">
+      <div class="kpi-label">Swin best val mIoU</div>
+      <div class="kpi-value">97.07%</div>
+      <div class="kpi-sub">epoch 14 <span>· +2.18 pp vs phase 1</span></div>
+    </div>
+    <div class="kpi gain">
+      <div class="kpi-label">Gap narrowed to</div>
+      <div class="kpi-value">0.17 pp</div>
+      <div class="kpi-sub">was <span>1.04 pp</span> after phase 1</div>
+    </div>
+    <div class="kpi tie">
+      <div class="kpi-label">Pixel accuracy (ep 14)</div>
+      <div class="kpi-value">99.1%</div>
+      <div class="kpi-sub">both models <span>effectively tied</span></div>
+    </div>
+  </div>
+
+  <!-- mIoU chart (full width) -->
+  <div class="chart-full card">
+    <div class="card-head">
+      <span class="card-title">Validation &amp; training mIoU</span>
+    </div>
+    <div class="card-subtitle">Epochs 1–15 · solid = validation · dashed = training</div>
+    <canvas id="miouChart" height="260"></canvas>
+    <div class="legend">
+      <div class="leg"><div class="leg-line" style="background:var(--cx)"></div>ConvNeXt val</div>
+      <div class="leg"><div class="leg-line leg-dash" style="color:var(--cx)"></div>ConvNeXt train</div>
+      <div class="leg"><div class="leg-line" style="background:var(--sw)"></div>Swin val</div>
+      <div class="leg"><div class="leg-line leg-dash" style="color:var(--sw)"></div>Swin train</div>
+    </div>
+  </div>
+
+  <!-- Loss + pixel acc side by side -->
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-head"><span class="card-title">Validation loss</span></div>
+      <div class="card-subtitle">CrossEntropyLoss · ignore_index=16</div>
+      <canvas id="valLossChart" height="220"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Validation pixel accuracy</span></div>
+      <div class="card-subtitle">Fraction of correctly labelled pixels</div>
+      <canvas id="pixAccChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- Train loss + mean acc -->
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-head"><span class="card-title">Training loss</span></div>
+      <div class="card-subtitle">CrossEntropyLoss · ignore_index=16</div>
+      <canvas id="trainLossChart" height="220"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Validation mean class accuracy</span></div>
+      <div class="card-subtitle">Per-class accuracy averaged across 16 fruit classes</div>
+      <canvas id="meanAccChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- Comparison table -->
+  <div class="table-card">
+    <div class="table-head-bar">
+      <span class="card-title">Epoch-by-epoch val mIoU</span>
+      <span style="font-size:11px;color:var(--muted)">best epoch highlighted</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>epoch</th>
+          <th>cx val mIoU</th>
+          <th>cx train mIoU</th>
+          <th>sw val mIoU</th>
+          <th>sw train mIoU</th>
+          <th>delta (cx-sw)</th>
+        </tr>
+      </thead>
+      <tbody id="epochTable"></tbody>
+    </table>
+  </div>
+
+  <!-- Phase 1 vs 2 gain comparison -->
+  <div class="phase-compare">
+    <div class="phase-card">
+      <div class="phase-card-title">ConvNeXt-V2 Tiny — phase 1 vs phase 2</div>
+      <div class="gain-row">
+        <span class="gain-label">phase 1 best val mIoU</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:95.93%;background:rgba(139,127,245,0.35)"></div></div>
+        <span class="gain-value" style="color:var(--muted2)">95.93%</span>
+      </div>
+      <div class="gain-row">
+        <span class="gain-label">phase 2 best val mIoU</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:97.24%;background:var(--cx)"></div></div>
+        <span class="gain-value v-cx">97.24%</span>
+      </div>
+      <div class="gain-row">
+        <span class="gain-label">improvement</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:13.1%;background:var(--amber)"></div></div>
+        <span class="gain-value" style="color:var(--amber)">+1.31 pp</span>
+      </div>
+      <div class="gain-row">
+        <span class="gain-label">best val loss</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:27.9%;background:var(--cx)"></div></div>
+        <span class="gain-value v-cx">0.0279</span>
+      </div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-card-title">Swin-V2 Tiny — phase 1 vs phase 2</div>
+      <div class="gain-row">
+        <span class="gain-label">phase 1 best val mIoU</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:94.89%;background:rgba(52,211,153,0.3)"></div></div>
+        <span class="gain-value" style="color:var(--muted2)">94.89%</span>
+      </div>
+      <div class="gain-row">
+        <span class="gain-label">phase 2 best val mIoU</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:97.07%;background:var(--sw)"></div></div>
+        <span class="gain-value v-sw">97.07%</span>
+      </div>
+      <div class="gain-row">
+        <span class="gain-label">improvement</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:21.8%;background:var(--amber)"></div></div>
+        <span class="gain-value" style="color:var(--amber)">+2.18 pp</span>
+      </div>
+      <div class="gain-row">
+        <span class="gain-label">best val loss</span>
+        <div class="gain-bar-wrap"><div class="gain-bar" style="width:31.3%;background:var(--sw)"></div></div>
+        <span class="gain-value v-sw">0.0313</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis -->
+  <div class="analysis">
+    <strong>Swin gained more from phase 2 (+2.18 pp) than ConvNeXt (+1.31 pp)</strong>, narrowing the gap from 1.04 pp to just 0.17 pp.
+    This confirms the phase 1 hypothesis: Swin's attention weights benefit significantly from domain adaptation, while ConvNeXt's
+    depthwise convolutions needed less correction. Both models are effectively tied on pixel accuracy at 99.1%.
+    <strong>ConvNeXt's val loss is more volatile</strong> (spike at epoch 5 to 0.046) while Swin converges more smoothly —
+    if phase 2 runs for the full 30 epochs, Swin may close the remaining mIoU gap entirely. Swin already edges
+    ahead on mean class accuracy at epoch 14 (0.9898 vs 0.9869), suggesting it is catching up on the harder underrepresented classes.
+  </div>
+
+  <footer>
+    <span>fruit-segmentation · phase 2 · backbone unfrozen</span>
+    <span>convnext_unet_tiny-202604011118 · swin_unet_tiny-202604060544</span>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const EP = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+
+const cx = {
+  trainMiou: [0.941164,0.946488,0.954539,0.965769,0.962372,0.966787,0.970424,0.970242,0.972169,0.976024,0.976645,0.976754,0.978711,0.979627,0.979183],
+  valMiou:   [0.946246,0.94977,0.961432,0.96018,0.952403,0.968225,0.966572,0.968748,0.971032,0.972044,0.97225,0.969842,0.970721,0.972355,0.970791],
+  trainLoss: [0.044456,0.041739,0.035276,0.028841,0.030167,0.02689,0.025169,0.024769,0.023363,0.020841,0.020099,0.020172,0.017833,0.017165,0.018347],
+  valLoss:   [0.043337,0.041118,0.036136,0.036049,0.046233,0.032241,0.033814,0.031254,0.028909,0.027907,0.029986,0.031646,0.031478,0.031268,0.033641],
+  valPixAcc: [0.98642,0.987012,0.989325,0.989148,0.987227,0.990382,0.990217,0.990817,0.991187,0.991137,0.991124,0.990886,0.991239,0.991052,0.991105],
+  valMeanAcc:[0.977147,0.978929,0.986039,0.98583,0.979462,0.989473,0.989201,0.987997,0.98853,0.988319,0.98858,0.988888,0.989455,0.986937,0.988464],
+};
+
+const sw = {
+  trainMiou: [0.933402,0.946855,0.951987,0.957037,0.957801,0.9624,0.964391,0.966398,0.968806,0.970595,0.96488,0.971627,0.972518,0.972874,0.974004],
+  valMiou:   [0.954762,0.962613,0.962739,0.965476,0.966862,0.967188,0.965917,0.969359,0.9683,0.963839,0.969379,0.968812,0.968476,0.97071,0.970265],
+  trainLoss: [0.050413,0.039493,0.037497,0.033578,0.034262,0.031355,0.029049,0.028817,0.027762,0.024998,0.029053,0.023278,0.023745,0.022583,0.022252],
+  valLoss:   [0.039855,0.035388,0.035519,0.035596,0.033547,0.033145,0.033635,0.031832,0.031535,0.034884,0.031542,0.032972,0.032283,0.031695,0.031335],
+  valPixAcc: [0.987502,0.989346,0.989281,0.989787,0.990447,0.990124,0.989985,0.990874,0.990575,0.990075,0.99094,0.990535,0.990755,0.991225,0.991099],
+  valMeanAcc:[0.982309,0.982549,0.986139,0.985271,0.985263,0.984783,0.985167,0.987508,0.986521,0.984758,0.987137,0.986604,0.988555,0.989809,0.989456],
+};
+
+const CX   = '#8b7ff5';
+const CXD  = 'rgba(139,127,245,0.38)';
+const SW   = '#34d399';
+const SWD  = 'rgba(52,211,153,0.32)';
+const GRID = 'rgba(255,255,255,0.04)';
+const TICK = 'rgba(255,255,255,0.28)';
+const FONT = "'JetBrains Mono', monospace";
+
+function baseOpts(yMin, yMax, step) {
+  return {
+    responsive: true,
+    animation: { duration: 900, easing: 'easeOutQuart' },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#131720',
+        borderColor: '#1f2535',
+        borderWidth: 1,
+        titleColor: '#e2e6f0',
+        bodyColor: '#8892a8',
+        titleFont: { family: FONT, size: 11 },
+        bodyFont:  { family: FONT, size: 11 },
+        padding: 10,
+        callbacks: { label: c => `  ${c.dataset.label}: ${c.parsed.y.toFixed(5)}` }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: GRID },
+        ticks: { color: TICK, font: { family: FONT, size: 10 } },
+        border: { color: 'rgba(255,255,255,0.08)' }
+      },
+      y: {
+        min: yMin, max: yMax,
+        grid: { color: GRID },
+        ticks: { color: TICK, font: { family: FONT, size: 10 }, stepSize: step },
+        border: { color: 'rgba(255,255,255,0.08)' }
+      }
+    }
+  };
+}
+
+function ds(label, data, color, dashed) {
+  return {
+    label, data,
+    borderColor: dashed ? color.replace(')', ',0.45)').replace('rgb', 'rgba') : color,
+    backgroundColor: 'transparent',
+    borderWidth: dashed ? 1.5 : 2.5,
+    borderDash: dashed ? [5,4] : [],
+    pointRadius: 3,
+    pointBackgroundColor: color,
+    tension: 0.3,
+  };
+}
+
+new Chart(document.getElementById('miouChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt val mIoU',   cx.valMiou,   CX,  false),
+    ds('ConvNeXt train mIoU', cx.trainMiou, CX,  true),
+    ds('Swin val mIoU',       sw.valMiou,   SW,  false),
+    ds('Swin train mIoU',     sw.trainMiou, SW,  true),
+  ]},
+  options: baseOpts(0.92, 0.985, 0.01),
+});
+
+new Chart(document.getElementById('valLossChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt val loss', cx.valLoss, CX, false),
+    ds('Swin val loss',     sw.valLoss, SW, false),
+  ]},
+  options: baseOpts(0.025, 0.052, 0.005),
+});
+
+new Chart(document.getElementById('pixAccChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt val pix acc', cx.valPixAcc, CX, false),
+    ds('Swin val pix acc',     sw.valPixAcc, SW, false),
+  ]},
+  options: baseOpts(0.985, 0.993, 0.001),
+});
+
+new Chart(document.getElementById('trainLossChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt train loss', cx.trainLoss, CX, false),
+    ds('Swin train loss',     sw.trainLoss, SW, false),
+  ]},
+  options: baseOpts(0.015, 0.056, 0.005),
+});
+
+new Chart(document.getElementById('meanAccChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    ds('ConvNeXt val mean acc', cx.valMeanAcc, CX, false),
+    ds('Swin val mean acc',     sw.valMeanAcc, SW, false),
+  ]},
+  options: baseOpts(0.975, 0.992, 0.002),
+});
+
+// Epoch table
+const tbody = document.getElementById('epochTable');
+const cxBest = cx.valMiou.indexOf(Math.max(...cx.valMiou));
+const swBest = sw.valMiou.indexOf(Math.max(...sw.valMiou));
+
+EP.forEach((ep, i) => {
+  const delta = cx.valMiou[i] - sw.valMiou[i];
+  const isCxBest = i === cxBest;
+  const isSwBest = i === swBest;
+  const rowBg = (isCxBest || isSwBest) ? 'background:rgba(255,255,255,0.03)' : '';
+  tbody.innerHTML += `
+    <tr style="${rowBg}">
+      <td style="color:var(--muted2)">${ep}</td>
+      <td class="v-cx ${isCxBest ? 'winner' : ''}">${cx.valMiou[i].toFixed(4)}</td>
+      <td style="color:var(--muted2)">${cx.trainMiou[i].toFixed(4)}</td>
+      <td class="v-sw ${isSwBest ? 'winner' : ''}">${sw.valMiou[i].toFixed(4)}</td>
+      <td style="color:var(--muted2)">${sw.trainMiou[i].toFixed(4)}</td>
+      <td class="${delta > 0 ? 'delta-pos' : 'delta-neu'}">${delta >= 0 ? '+' : ''}${(delta*100).toFixed(2)} pp</td>
+    </tr>`;
+});
+</script>
+</body>
+</html>
