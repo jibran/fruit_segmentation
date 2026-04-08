@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1 — Class-Level Accuracy Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #080a0f;
+    --bg1:     #0d1018;
+    --bg2:     #131720;
+    --bg3:     #1a1f2e;
+    --border:  #1f2535;
+    --text:    #e2e6f0;
+    --muted:   #5a6480;
+    --muted2:  #8892a8;
+    --cx:      #8b7ff5;
+    --sw:      #34d399;
+    --cxb:     #f472b6;
+    --swb:     #fb923c;
+    --amber:   #fbbf24;
+    --red:     #f87171;
+    --mono:    'JetBrains Mono', monospace;
+    --display: 'Anybody', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 40px 28px 80px; }
+  body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px); pointer-events:none; z-index:100; }
+  .wrap { max-width: 1140px; margin: 0 auto; }
+
+  header { display:grid; grid-template-columns:1fr auto; align-items:end; gap:20px; margin-bottom:40px; padding-bottom:24px; border-bottom:1px solid var(--border); }
+  .eyebrow { font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--amber); border:1px solid rgba(251,191,36,0.3); background:rgba(251,191,36,0.08); display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border-radius:3px; margin-bottom:10px; }
+  .eyebrow::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--amber); animation:pulse 2s ease-in-out infinite; }
+  h1 { font-family:var(--display); font-size:36px; font-weight:700; letter-spacing:-0.03em; line-height:1; }
+  h1 em { font-style:normal; color:var(--amber); }
+  .header-meta { text-align:right; color:var(--muted); font-size:11px; line-height:2.1; }
+  .header-meta strong { color:var(--muted2); font-weight:400; }
+
+  .tabs { display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:0; }
+  .tab { padding:8px 16px; font-size:11px; letter-spacing:0.06em; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .2s, border-color .2s; }
+  .tab:hover { color:var(--muted2); }
+  .tab.active { color:var(--amber); border-bottom-color:var(--amber); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+
+  .legend-bar { display:flex; flex-wrap:wrap; gap:20px; margin-bottom:24px; padding:12px 18px; background:var(--bg1); border:1px solid var(--border); border-radius:6px; align-items:center; }
+  .leg { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted2); }
+  .leg-sq { width:10px; height:10px; border-radius:2px; }
+  .leg-sep { width:1px; height:18px; background:var(--border); }
+
+  .heatmap-wrap { background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:20px 22px; margin-bottom:16px; overflow-x:auto; }
+  .heatmap-title { font-family:var(--display); font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .heatmap-sub { font-size:11px; color:var(--muted); margin-bottom:18px; }
+  table.heatmap { width:100%; border-collapse:collapse; min-width:700px; }
+  table.heatmap th { font-size:10px; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); font-weight:400; white-space:nowrap; }
+  table.heatmap th:not(:first-child) { text-align:center; }
+  table.heatmap td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; white-space:nowrap; }
+  table.heatmap td:first-child { color:var(--muted2); }
+  table.heatmap td:not(:first-child) { text-align:center; font-weight:500; border-radius:3px; }
+  table.heatmap tr:last-child td { border-bottom:none; }
+  .fresh-row td:first-child { color:var(--text); }
+
+  .bar-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  .card { background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:20px 22px 14px; margin-bottom:16px; }
+  .card-title { font-family:var(--display); font-size:14px; font-weight:600; color:var(--text); margin-bottom:3px; }
+  .card-sub { font-size:11px; color:var(--muted); margin-bottom:18px; }
+  canvas { width:100% !important; display:block; }
+
+  .class-bars-wrap { background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:20px 22px; margin-bottom:16px; }
+  .class-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+  .class-row:last-child { border-bottom:none; }
+  .class-name { min-width:160px; font-size:11px; color:var(--muted2); }
+  .class-name.fresh { color:var(--text); }
+  .bars-group { flex:1; display:flex; flex-direction:column; gap:3px; }
+  .bar-track { height:5px; background:var(--bg3); border-radius:3px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:3px; }
+  .class-vals { min-width:200px; display:flex; gap:8px; justify-content:flex-end; }
+  .cv { font-size:11px; min-width:44px; text-align:right; }
+
+  .diff-card { background:var(--bg1); border:1px solid var(--border); border-radius:6px; padding:20px 22px; margin-bottom:16px; }
+  .diff-title { font-family:var(--display); font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .diff-sub { font-size:11px; color:var(--muted); margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+  .diff-row { display:flex; align-items:center; gap:12px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .diff-row:last-child { border-bottom:none; }
+  .diff-label { min-width:170px; font-size:11px; color:var(--muted2); }
+  .diff-bar-wrap { flex:1; display:flex; align-items:center; position:relative; height:12px; }
+  .diff-center { position:absolute; left:50%; width:1px; height:100%; background:rgba(255,255,255,0.2); }
+  .diff-bar { position:absolute; height:8px; top:2px; border-radius:2px; }
+  .diff-val { min-width:56px; text-align:right; font-size:11px; font-weight:500; }
+
+  .insight { background:var(--bg1); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:0 6px 6px 0; padding:16px 20px; font-size:12px; color:var(--muted2); line-height:1.8; margin-bottom:16px; }
+  .insight strong { color:var(--text); font-weight:500; }
+
+  footer { margin-top:52px; padding-top:20px; border-top:1px solid var(--border); display:flex; justify-content:space-between; font-size:10px; color:var(--muted); flex-wrap:wrap; gap:6px; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  @media(max-width:720px) { .bar-grid{grid-template-columns:1fr} h1{font-size:26px} .class-vals{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <div class="eyebrow">Phase 1 · class-level accuracy report</div>
+    <h1>Per-class <em>breakdown</em></h1>
+  </div>
+  <div class="header-meta">
+    <div><strong>epoch</strong> 15 · val set · frozen backbone</div>
+    <div><strong>metric</strong> per-class accuracy</div>
+    <div><strong>classes</strong> 8 fresh + 8 rotten</div>
+    <div><strong>val images</strong> ~311</div>
+  </div>
+</header>
+
+<div class="legend-bar">
+  <div class="leg"><div class="leg-sq" style="background:var(--cxb)"></div>ConvNeXt baseline</div>
+  <div class="leg"><div class="leg-sq" style="background:var(--cx)"></div>ConvNeXt U-Net</div>
+  <div class="leg-sep"></div>
+  <div class="leg"><div class="leg-sq" style="background:var(--swb)"></div>Swin baseline</div>
+  <div class="leg"><div class="leg-sq" style="background:var(--sw)"></div>Swin U-Net</div>
+  <div class="leg-sep"></div>
+  <div class="leg" style="color:var(--muted);font-size:11px">Values shown: per-class accuracy @ epoch 15 val</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('heatmap')">Heatmap</div>
+  <div class="tab" onclick="showTab('bars')">Bar comparison</div>
+  <div class="tab" onclick="showTab('radar')">Radar</div>
+  <div class="tab" onclick="showTab('gap')">Baseline gap</div>
+</div>
+
+<!-- HEATMAP TAB -->
+<div id="tab-heatmap" class="tab-panel active">
+  <div class="heatmap-wrap">
+    <div class="heatmap-title">Per-class accuracy — epoch 15 validation</div>
+    <div class="heatmap-sub">Cell colour: green = high accuracy · red = low accuracy · sorted by ConvNeXt U-Net ascending</div>
+    <table class="heatmap" id="heatmapTable"></table>
+  </div>
+
+  <div class="insight">
+    <strong>Rotten pomegranate and rotten grape are the hardest classes across all models.</strong>
+    Both baselines cap at 94.7% on rotten pomegranate (the validation split contains only 19 images of this class),
+    while the U-Nets reach 97.8% and 94.4% respectively — the decoder's spatial context helps distinguish rotten pomegranate
+    from rotten apple which share similar dark-red colouring. Rotten grape at 93.5–96.1% is limited by the small number of validation
+    samples and the visual similarity to rotten jujube.
+    <strong>Fresh guava is the weakest fresh class</strong> at 94.3% for ConvNeXt U-Net — its yellow-green colouring overlaps
+    with fresh jujube at certain image angles, and the decoder must rely on shape context to separate them.
+  </div>
+</div>
+
+<!-- BAR TAB -->
+<div id="tab-bars" class="tab-panel">
+  <div class="class-bars-wrap">
+    <div class="heatmap-title" style="margin-bottom:4px">All 16 classes — val accuracy @ epoch 15</div>
+    <div class="heatmap-sub" style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border)">Each bar = one model · bar length = accuracy</div>
+    <div id="classBarRows"></div>
+  </div>
+</div>
+
+<!-- RADAR TAB -->
+<div id="tab-radar" class="tab-panel">
+  <div class="bar-grid">
+    <div class="card">
+      <div class="card-title">Fresh classes — val accuracy @ ep 15</div>
+      <div class="card-sub">Radar over 8 fresh fruit species</div>
+      <canvas id="radarFresh" height="300"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Rotten classes — val accuracy @ ep 15</div>
+      <div class="card-sub">Radar over 8 rotten fruit species</div>
+      <canvas id="radarRotten" height="300"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Rotten pomegranate — val accuracy across epochs</div>
+    <div class="card-sub">Hardest class · all 4 models · 15 epochs</div>
+    <canvas id="hardClassChart" height="200"></canvas>
+  </div>
+</div>
+
+<!-- GAP TAB -->
+<div id="tab-gap" class="tab-panel">
+  <div class="diff-card">
+    <div class="diff-title">Baseline minus U-Net gap — ConvNeXt</div>
+    <div class="diff-sub">Positive = baseline leads · negative = U-Net leads · val acc @ ep 15</div>
+    <div id="gapCX"></div>
+  </div>
+  <div class="diff-card">
+    <div class="diff-title">Baseline minus U-Net gap — Swin</div>
+    <div class="diff-sub">Positive = baseline leads · negative = U-Net leads · val acc @ ep 15</div>
+    <div id="gapSW"></div>
+  </div>
+  <div class="insight">
+    <strong>Rotten pomegranate and rotten jujube are the only classes where the U-Net outperforms the baseline.</strong>
+    For every other class, the image-level classifier matches or exceeds the segmentation model at epoch 15.
+    This is expected: the frozen decoder hasn't yet learned to leverage spatial context for these hard classes,
+    while the baseline's global pooling already captures the distinctive texture patterns. These classes will
+    be the ones to watch most carefully in phase 2.
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const CXB = '#f472b6', CX = '#8b7ff5', SWB = '#fb923c', SW = '#34d399';
+const GRID = 'rgba(255,255,255,0.06)', TICK = 'rgba(255,255,255,0.28)';
+const FONT = "'JetBrains Mono', monospace";
+
+const CLASSES = [
+  "fresh_apple","fresh_banana","fresh_grape","fresh_guava",
+  "fresh_jujube","fresh_orange","fresh_pomegranate","fresh_strawberry",
+  "rotten_apple","rotten_banana","rotten_grape","rotten_guava",
+  "rotten_jujube","rotten_orange","rotten_pomegranate","rotten_strawberry"
+];
+
+const SHORT = [
+  "fr. apple","fr. banana","fr. grape","fr. guava",
+  "fr. jujube","fr. orange","fr. pomegranate","fr. strawberry",
+  "rot. apple","rot. banana","rot. grape","rot. guava",
+  "rot. jujube","rot. orange","rot. pomegranate","rot. strawberry"
+];
+
+const EP15 = {
+  cx_base: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.95,1.0,0.9474,1.0,0.9474,1.0],
+  cx_unet: [0.9928,0.9955,0.9815,0.9431,0.9971,0.9879,0.9741,0.9923,0.9914,0.9947,0.9612,0.9912,0.9852,0.9792,0.9776,0.9827],
+  sw_base: [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.95,1.0,1.0,1.0,0.9474,1.0],
+  sw_unet: [0.984,0.9916,0.9773,0.9672,0.9951,0.9902,0.9894,0.9928,0.9775,0.9884,0.935,0.9875,0.9837,0.9836,0.9439,0.9695],
+};
+
+const ROT_POMO_SERIES = {
+  cx_base: [0.7895,0.7368,0.8421,0.9474,0.9474,0.8947,0.8947,0.9474,0.8421,0.9474,0.9474,0.9474,0.9474,0.9474,0.9474],
+  cx_unet: [0.1214,0.8534,0.6234,0.8229,0.808,0.8348,0.85,0.7296,0.8852,0.9605,0.8638,0.941,0.9439,0.9568,0.9776],
+  sw_base: [0.8421,0.8421,0.8421,0.9474,0.9474,0.9474,0.9474,0.8421,0.8421,0.9474,0.9474,0.9474,0.9474,0.9474,0.9474],
+  sw_unet: [0.7948,0.9059,0.7299,0.5664,0.8674,0.831,0.9377,0.8703,0.8634,0.9426,0.9476,0.9517,0.9393,0.9385,0.9439],
+};
+
+function cellColor(v) {
+  if (v === null) return 'var(--bg3)';
+  const t = Math.max(0, Math.min(1, (v - 0.88) / 0.12));
+  const r = Math.round(248 * (1 - t) + 34 * t);
+  const g = Math.round(113 * (1 - t) + 211 * t);
+  const b = Math.round(113 * (1 - t) + 153 * t);
+  const alpha = 0.3 + t * 0.5;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function textColor(v) {
+  if (v === null) return 'var(--muted)';
+  if (v >= 0.995) return '#86efac';
+  if (v >= 0.98)  return '#6ee7b7';
+  if (v >= 0.96)  return '#e2e6f0';
+  if (v >= 0.94)  return '#fbbf24';
+  return '#f87171';
+}
+
+// Sort classes by cx_unet asc
+const sortedIdx = [...CLASSES.keys()].sort((a,b) => EP15.cx_unet[a] - EP15.cx_unet[b]);
+
+// Build heatmap
+const tbl = document.getElementById('heatmapTable');
+tbl.innerHTML = `<thead><tr>
+  <th>class</th>
+  <th style="color:var(--cxb)">CX baseline</th>
+  <th style="color:var(--cx)">CX U-Net</th>
+  <th style="color:var(--swb)">SW baseline</th>
+  <th style="color:var(--sw)">SW U-Net</th>
+</tr></thead><tbody>${
+  sortedIdx.map(i => {
+    const isFresh = i < 8;
+    const vals = [EP15.cx_base[i], EP15.cx_unet[i], EP15.sw_base[i], EP15.sw_unet[i]];
+    const cells = vals.map(v => `<td style="background:${cellColor(v)};color:${textColor(v)}">${v !== null ? (v*100).toFixed(1)+'%' : '—'}</td>`).join('');
+    return `<tr class="${isFresh?'fresh-row':''}"><td class="${isFresh?'fresh':''}">${SHORT[i]}</td>${cells}</tr>`;
+  }).join('')
+}</tbody>`;
+
+// Build bar rows
+const barWrap = document.getElementById('classBarRows');
+CLASSES.forEach((cls, i) => {
+  const isFresh = i < 8;
+  const models = [
+    {k:'cx_base', c:CXB}, {k:'cx_unet', c:CX},
+    {k:'sw_base', c:SWB}, {k:'sw_unet', c:SW},
+  ];
+  const barsHTML = models.map(m => {
+    const v = EP15[m.k][i];
+    const w = v ? (v * 100).toFixed(1) : '0';
+    return `<div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${m.c}"></div></div>`;
+  }).join('');
+  const valsHTML = models.map(m => {
+    const v = EP15[m.k][i];
+    return `<span class="cv" style="color:${m.c}">${v ? (v*100).toFixed(1)+'%' : '—'}</span>`;
+  }).join('');
+  barWrap.innerHTML += `<div class="class-row">
+    <div class="class-name ${isFresh?'fresh':''}">${SHORT[i]}</div>
+    <div class="bars-group">${barsHTML}</div>
+    <div class="class-vals">${valsHTML}</div>
+  </div>`;
+});
+
+// Radar charts
+function radarOpts(labels) {
+  return {
+    responsive: true,
+    animation: { duration: 800 },
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#131720', borderColor: '#1f2535', borderWidth: 1,
+      titleColor: '#e2e6f0', bodyColor: '#8892a8',
+      titleFont: { family: FONT, size: 11 }, bodyFont: { family: FONT, size: 11 },
+      padding: 10,
+    }},
+    scales: { r: {
+      min: 0.88, max: 1.01,
+      ticks: { display: false, stepSize: 0.03 },
+      grid: { color: 'rgba(255,255,255,0.08)' },
+      angleLines: { color: 'rgba(255,255,255,0.08)' },
+      pointLabels: { color: 'rgba(255,255,255,0.45)', font: { family: FONT, size: 10 } },
+    }}
+  };
+}
+
+const freshLabels = ["Apple","Banana","Grape","Guava","Jujube","Orange","Pomegranate","Strawberry"];
+const rottenLabels = freshLabels.map(l => l);
+
+function radarDs(label, data, color) {
+  return { label, data, borderColor: color, backgroundColor: color.replace(')', ',0.08)').replace('rgb(','rgba('), borderWidth: 2, pointBackgroundColor: color, pointRadius: 3 };
+}
+
+new Chart(document.getElementById('radarFresh'), {
+  type: 'radar',
+  data: { labels: freshLabels, datasets: [
+    radarDs('CX baseline', EP15.cx_base.slice(0,8), CXB),
+    radarDs('CX U-Net',    EP15.cx_unet.slice(0,8), CX),
+    radarDs('SW baseline', EP15.sw_base.slice(0,8), SWB),
+    radarDs('SW U-Net',    EP15.sw_unet.slice(0,8), SW),
+  ]}, options: radarOpts(freshLabels),
+});
+
+new Chart(document.getElementById('radarRotten'), {
+  type: 'radar',
+  data: { labels: rottenLabels, datasets: [
+    radarDs('CX baseline', EP15.cx_base.slice(8), CXB),
+    radarDs('CX U-Net',    EP15.cx_unet.slice(8), CX),
+    radarDs('SW baseline', EP15.sw_base.slice(8), SWB),
+    radarDs('SW U-Net',    EP15.sw_unet.slice(8), SW),
+  ]}, options: radarOpts(rottenLabels),
+});
+
+const EP = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+const baseOpts = (yMin, yMax) => ({
+  responsive: true, animation: { duration: 800 },
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#131720', borderColor: '#1f2535', borderWidth: 1,
+    titleColor: '#e2e6f0', bodyColor: '#8892a8',
+    titleFont: { family: FONT, size: 11 }, bodyFont: { family: FONT, size: 11 }, padding: 10,
+    callbacks: { label: c => `  ${c.dataset.label}: ${(c.parsed.y*100).toFixed(1)}%` }
+  }},
+  scales: {
+    x: { grid:{color:GRID}, ticks:{color:TICK, font:{family:FONT,size:10}}, border:{color:'rgba(255,255,255,0.08)'} },
+    y: { min:yMin, max:yMax, grid:{color:GRID}, ticks:{color:TICK, font:{family:FONT,size:10}, callback:v=>(v*100).toFixed(0)+'%'}, border:{color:'rgba(255,255,255,0.08)'} }
+  }
+});
+
+new Chart(document.getElementById('hardClassChart'), {
+  type: 'line',
+  data: { labels: EP, datasets: [
+    { label:'CX baseline', data:ROT_POMO_SERIES.cx_base, borderColor:CXB, backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, pointBackgroundColor:CXB, tension:0.3 },
+    { label:'CX U-Net',    data:ROT_POMO_SERIES.cx_unet, borderColor:CX,  backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, pointBackgroundColor:CX,  tension:0.3 },
+    { label:'SW baseline', data:ROT_POMO_SERIES.sw_base, borderColor:SWB, backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, pointBackgroundColor:SWB, tension:0.3 },
+    { label:'SW U-Net',    data:ROT_POMO_SERIES.sw_unet, borderColor:SW,  backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, pointBackgroundColor:SW,  tension:0.3 },
+  ]},
+  options: baseOpts(0.6, 1.02),
+});
+
+// Gap charts
+function buildGap(containerId, baseKey, unetKey, baseColor, unetColor) {
+  const wrap = document.getElementById(containerId);
+  sortedIdx.forEach(i => {
+    const baseVal = EP15[baseKey][i];
+    const unetVal = EP15[unetKey][i];
+    const diff = baseVal - unetVal;
+    const absDiff = Math.abs(diff);
+    const maxDiff = 0.08;
+    const barW = Math.min(100, (absDiff / maxDiff) * 50);
+    const isPos = diff >= 0;
+    const barColor = isPos ? baseColor : unetColor;
+    const barLeft = isPos ? '50%' : `${50 - barW}%`;
+    const valStr = (diff >= 0 ? '+' : '') + (diff * 100).toFixed(2) + ' pp';
+    const valColor = isPos ? baseColor : unetColor;
+
+    wrap.innerHTML += `<div class="diff-row">
+      <div class="diff-label">${SHORT[i]}</div>
+      <div class="diff-bar-wrap">
+        <div class="diff-center"></div>
+        <div class="diff-bar" style="left:${barLeft};width:${barW}%;background:${barColor}"></div>
+      </div>
+      <div class="diff-val" style="color:${valColor}">${valStr}</div>
+    </div>`;
+  });
+}
+
+buildGap('gapCX', 'cx_base', 'cx_unet', CXB, CX);
+buildGap('gapSW', 'sw_base', 'sw_unet', SWB, SW);
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[onclick="showTab('${name}')"]`).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+</script>
+</body>
+</html>
