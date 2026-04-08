@@ -127,6 +127,12 @@ This produces an 80/10/10 stratified split across all 16 fruit classes. Mask pix
 ## Training
 
 ```bash
+# ConvNeXt baseline
+python train/train.py --config config/convnext_baseline.yaml --size tiny
+
+# Swin baseline
+python train/train.py --config config/swin_baseline.yaml --size tiny
+
 # ConvNeXt-V2 U-Net (tiny)
 python train/train.py --config config/convnext_unet.yaml --size tiny
 

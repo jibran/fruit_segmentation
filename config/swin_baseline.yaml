@@ -1,0 +1,20 @@
+# Swin Transformer V2 Tiny baseline classifier configuration.
+# Image-level classification — no decoder, no pixel-level prediction.
+# Used to establish the backbone-only accuracy ceiling for SwinUNet.
+
+defaults:
+  - base_config
+
+model:
+  name: "swin_baseline"
+  backbone: "swinv2"
+  size: "tiny"
+  pretrained: true
+  freeze_backbone_phase1: true
+
+training:
+  epochs_phase1: 15
+  epochs_phase2: 30
+  lr_decoder: 1.0e-3        # head LR in phase 1
+  lr_backbone_phase2: 1.0e-5
+  lr_decoder_phase2: 1.0e-4 # head LR in phase 2

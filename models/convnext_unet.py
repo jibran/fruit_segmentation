@@ -218,3 +218,24 @@ class ConvNeXtUNet(nn.Module):
             "seg_head": head_params,
             "total": backbone_params + decoder_params + head_params,
         }
+
+
+# ── Quick self-test ───────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    print("ConvNeXt-V2 UNet — self-test (pretrained=False, tiny)")
+    model = ConvNeXtUNet(num_classes=17, size="tiny", pretrained=False)
+    model.eval()
+
+    x = torch.randn(2, 3, 224, 224)
+    with torch.no_grad():
+        out = model(x)
+
+    counts = model.count_parameters()
+    assert out.shape == (2, 17, 224, 224), f"Unexpected output shape: {out.shape}"
+    print(f"  Output shape : {out.shape}  ✓")
+    print(f"  Backbone     : {counts['backbone'] / 1e6:.1f}M params")
+    print(f"  Decoder      : {counts['decoder'] / 1e6:.3f}M params")
+    print(f"  Seg Head     : {counts['seg_head'] / 1e6:.3f}M params")
+    print(f"  Total        : {counts['total'] / 1e6:.1f}M params")
+    print("  All assertions passed ✓")

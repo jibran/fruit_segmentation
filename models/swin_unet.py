@@ -308,3 +308,24 @@ class SwinUNet(nn.Module):
             "seg_head": head_params,
             "total": backbone_params + decoder_params + head_params,
         }
+
+
+# ── Quick self-test ───────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    print("Swin-V2 Unet — self-test (pretrained=False, tiny, input_size=512)")
+    model = SwinUNet(num_classes=17, size="tiny", pretrained=False, input_size=512)
+    model.eval()
+
+    x = torch.randn(2, 3, 512, 512)
+    with torch.no_grad():
+        out = model(x)
+
+    counts = model.count_parameters()
+    assert out.shape == (2, 17, 512, 512), f"Unexpected output shape: {out.shape}"
+    print(f"  Output shape : {out.shape}  ✓")
+    print(f"  Backbone     : {counts['backbone'] / 1e6:.1f}M params")
+    print(f"  Decoder      : {counts['decoder'] / 1e6:.3f}M params")
+    print(f"  Seg Head     : {counts['seg_head'] / 1e6:.3f}M params")
+    print(f"  Total        : {counts['total'] / 1e6:.1f}M params")
+    print("  All assertions passed ✓")
