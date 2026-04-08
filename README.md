@@ -1,7 +1,7 @@
 # Fruit Segmentation — Hybrid U-Net Pipeline
 
 Pixel-perfect instance segmentation of fresh and rotten fruits on conveyor belts.
-Two backbone options compared: **ConvNeXt-V2** and **Swin Transformer V2**, both wired to a shared custom U-Net decoder.
+Two backbone options compared: [**ConvNeXt-V2**](./images/convnextv2_architecture.svg) and [**Swin Transformer V2**](./images/swin_transformer_v2_architecture.svg), both wired to a shared custom U-Net decoder.
 
 ---
 
@@ -9,7 +9,7 @@ Two backbone options compared: **ConvNeXt-V2** and **Swin Transformer V2**, both
 
 ### ConvNeXt-V2 U-Net
 
-![ConvNeXt-V2 U-Net architecture](./images/convnext-unet-architecture.svg)
+![ConvNeXt-V2 U-Net architecture](./images/convnext_unet_skip_connections.svg)
 
 ConvNeXt-V2's `features_only=True` mode returns stage outputs directly as channels-first `(B, C, H, W)` — no format conversion needed before the decoder.
 
@@ -17,7 +17,7 @@ ConvNeXt-V2's `features_only=True` mode returns stage outputs directly as channe
 
 ### Swin-V2 U-Net
 
-![Swin-V2 U-Net architecture](./images/swin-unet-architecture.svg)
+![Swin-V2 U-Net architecture](./images/swin_unet_skip_connections.svg)
 
 Swin-V2 returns stage outputs in channels-last `(B, H, W, C)`. `_ensure_spatial()` detects this by comparing `x.shape[1]` to the known channel count `C` for each stage and permutes to `(B, C, H, W)` before the decoder.
 
@@ -54,6 +54,7 @@ fruit_segmentation/
 │   └── train.py             # Main training script (two-phase)
 ├── inference/
 │   └── inference.py         # Single image or batch prediction
+│   └── webcam_inference.py  # Live prediction
 ├── visualization/
 │   └── plot_metrics.py      # Training curves + model comparison plots
 ├── tests/                   # pytest test suite
@@ -168,6 +169,41 @@ python inference/inference.py \
     --checkpoint checkpoints/best/convnext_unet_tiny_best.pth \
     --input data/processed/images/test/ \
     --output predictions/
+```
+
+---
+
+# Live Inference
+
+
+* Press ``q`` or ``Esc`` to quit.
+* Press ``s`` to save a snapshot of the current frame to disk.
+* Press ``l`` to toggle class labels on/off.
+* Press ``+`` / ``-`` to increase/decrease the overlay alpha.
+
+```bash
+
+python inference/webcam_inference.py \
+    --config config/convnext_unet.yaml \
+    --checkpoint checkpoints/best/convnext_unet_tiny_best.pth
+
+# Specify camera index (default 0)
+python inference/webcam_inference.py \
+    --config config/swin_unet.yaml \
+    --checkpoint checkpoints/best/swin_unet_tiny_best.pth \
+    --camera 1
+
+# Limit inference resolution for speed (frames are resized back for display)
+python inference/webcam_inference.py \
+    --config config/convnext_unet.yaml \
+    --checkpoint checkpoints/best/convnext_unet_tiny_best.pth \
+    --infer-size 256
+
+# Save snapshots to a custom directory
+python inference/webcam_inference.py \
+    --config config/convnext_unet.yaml \
+    --checkpoint checkpoints/best/convnext_unet_tiny_best.pth \
+    --snapshot-dir snapshots/
 ```
 
 Outputs:
