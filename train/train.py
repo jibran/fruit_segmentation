@@ -33,10 +33,19 @@ import torch.nn as nn
 from config.config_loader import get_model_name_with_size, load_config
 from dataset.fruit_dataset import CLASS_NAMES, build_dataloaders
 from models import build_model
+from models.convnext_baseline import ConvNeXtBaseline
+from models.swin_baseline import SwinBaseline
 from utils.checkpoint import CheckpointManager
-from utils.engine import train_one_epoch, validate_one_epoch
+from utils.engine import (
+    train_one_epoch,
+    train_one_epoch_baseline,
+    validate_one_epoch,
+    validate_one_epoch_baseline,
+)
 from utils.logger import CSVLogger
 from utils.transforms import build_train_transform, build_val_transform
+
+_BASELINE_MODELS = (ConvNeXtBaseline, SwinBaseline)
 
 
 def parse_args() -> argparse.Namespace:
@@ -184,24 +193,49 @@ def run_phase(
 
     for epoch in range(start_epoch, num_epochs + 1):
         # ── Train ────────────────────────────────────────────────────
-        train_metrics = train_one_epoch(
-            model,
-            train_loader,
-            criterion,
-            optimizer,
-            device,
-            epoch,
-            grad_clip,
-            log_interval,
-        )
+        _is_baseline = isinstance(model, _BASELINE_MODELS)
+        ignore_idx = cfg["training"].get("ignore_index", 16)
+        if _is_baseline:
+            train_metrics = train_one_epoch_baseline(
+                model,
+                train_loader,
+                criterion,
+                optimizer,
+                device,
+                epoch,
+                ignore_idx,
+                grad_clip,
+                log_interval,
+            )
+        else:
+            train_metrics = train_one_epoch(
+                model,
+                train_loader,
+                criterion,
+                optimizer,
+                device,
+                epoch,
+                grad_clip,
+                log_interval,
+            )
         # ── Validate ─────────────────────────────────────────────────
-        val_metrics = validate_one_epoch(
-            model,
-            val_loader,
-            criterion,
-            device,
-            epoch,
-        )
+        if _is_baseline:
+            val_metrics = validate_one_epoch_baseline(
+                model,
+                val_loader,
+                criterion,
+                device,
+                epoch,
+                ignore_idx,
+            )
+        else:
+            val_metrics = validate_one_epoch(
+                model,
+                val_loader,
+                criterion,
+                device,
+                epoch,
+            )
 
         # ── LR step ──────────────────────────────────────────────────
         if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
@@ -285,11 +319,13 @@ def main() -> None:
     # ── Model ────────────────────────────────────────────────────────
     model = build_model(cfg).to(device)
     param_counts = model.count_parameters()
-    print(
-        f"  Params: {param_counts['total'] / 1e6:.1f}M total "
-        f"({param_counts['backbone'] / 1e6:.1f}M backbone + "
-        f"{param_counts['decoder'] / 1e6:.1f}M decoder)"
-    )
+    print(f"  Backbone : {param_counts['backbone']/1e6:.1f}M params")
+    if "baseline" in model_name:
+        print(f"  Head     : {param_counts['head']/1e6:.1f}M params")
+    else:
+        print(f"  Decoder  : {param_counts['decoder']/1e6:.1f}M params")
+        print(f"  Seg Head : {param_counts['seg_head'] / 1e6:.3f}M params")
+    print(f"  Total    : {param_counts['total']/1e6:.1f}M params")
 
     # ── Utilities ────────────────────────────────────────────────────
     criterion = build_criterion(cfg, device)
